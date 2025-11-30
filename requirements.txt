@@ -1,4 +1,4 @@
-pyppeteer
+playwright
 asyncio
 fastapi
 uvicorn[standard]

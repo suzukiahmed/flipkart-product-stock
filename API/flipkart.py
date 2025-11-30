@@ -1,37 +1,36 @@
-from pyppeteer import launch
+from playwright.async_api import async_playwright
 import asyncio
 import math
 
 
 async def getProductDetails(productLink, pincode):
-    browser = await launch(args=['--no-sandbox'],
-                           headless=True,
-                           handleSIGINT=False,
-                           handleSIGTERM=False,
-                           handleSIGHUP=False)
-    page = await browser.newPage()
-    await page.setRequestInterception(True)
+    playwright = await async_playwright().start()
+    browser = await playwright.chromium.launch(headless=True, args=['--no-sandbox'])
+    context = await browser.new_context(
+        user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.97 Safari/537.36 OPR/68.0.3618.125'
+    )
+    page = await context.new_page()
 
-    async def intercept(request):
-        if any(request.resourceType == _ for _ in ('stylesheet', 'image', 'font')):
-            await request.abort()
+    async def route_handler(route):
+        resource_type = route.request.resource_type
+        if resource_type in ('stylesheet', 'image', 'font'):
+            await route.abort()
         else:
-            await request.continue_()
+            await route.continue_()
 
-    page.on('request', lambda req: asyncio.ensure_future(intercept(req)))
-    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.97 Safari/537.36 OPR/68.0.3618.125')
+    await page.route('**/*', route_handler)
     try:
         try:
             await page.goto(productLink, timeout=10000)
         except:
             None
         try:
-            await page.waitForXPath('//div[contains(text(), "currently out of stock")]', timeout=1000)
+            await page.locator('xpath=//div[contains(text(), "currently out of stock")]').wait_for(timeout=1000)
             outOfStock = True
         except:
             outOfStock = False
         try:
-            await page.waitForXPath('//div[contains(text(), "Coming Soon")]', timeout=800)
+            await page.locator('xpath=//div[contains(text(), "Coming Soon")]').wait_for(timeout=800)
             comingSoon = True
         except:
             comingSoon = False
@@ -41,31 +40,31 @@ async def getProductDetails(productLink, pincode):
             inStock = True
         if (inStock):
             try:
-                pincodeField = await page.xpath('//input[@id="pincodeInputId"]')
-                await pincodeField[0].click(clickCount=3)
-                await pincodeField[0].type(str(pincode))
+                pincodeField = page.locator('xpath=//input[@id="pincodeInputId"]')
+                await pincodeField.click(click_count=3)
+                await pincodeField.type(str(pincode))
             except:
                 try:
-                    await page.waitForSelector('input[class="cfnctZ"]', timeout=1200)
+                    await page.wait_for_selector('input[class="cfnctZ"]', timeout=1200)
                 except:
-                    pincodeDropDownMenu = await page.querySelector('img[src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI5IiBoZWlnaHQ9IjUiPjxwYXRoIGZpbGw9IiMyMTIxMjEiIGZpbGwtcnVsZT0iZXZlbm9kZCIgZD0iTS4yMjcuNzAzQy0uMTY4LjMxNS0uMDMyIDAgLjUxNCAwaDcuOTY1Yy41NTYgMCAuNjg1LjMxNy4yOTguNjk4TDcuNjQgMS44MThsLTIuNDI3IDIuMzlhMS4wMiAxLjAyIDAgMCAxLTEuNDI3LS4wMDNMLjIyNy43MDN6Ii8+PC9zdmc+"]')
+                    pincodeDropDownMenu = page.locator('img[src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI5IiBoZWlnaHQ9IjUiPjxwYXRoIGZpbGw9IiMyMTIxMjEiIGZpbGwtcnVsZT0iZXZlbm9kZCIgZD0iTS4yMjcuNzAzQy0uMTY4LjMxNS0uMDMyIDAgLjUxNCAwaDcuOTY1Yy41NTYgMCAuNjg1LjMxNy4yOTguNjk4TDcuNjQgMS44MThsLTIuNDI3IDIuMzlhMS4wMiAxLjAyIDAgMCAxLTEuNDI3LS4wMDNMLjIyNy43MDN6Ii8+PC9zdmc+"]')
                     await pincodeDropDownMenu.click()
-                    await page.waitForSelector('input[class="cfnctZ"]', timeout=1100)
-                pincodeField = await page.querySelectorAll('input[class="cfnctZ"]')
-                await pincodeField[0].click(clickCount=3)
-                await pincodeField[0].type(str(pincode))
-            checkButton = await page.Jx('//span[contains(text(), "Check")]')
-            await checkButton[0].click()
+                    await page.wait_for_selector('input[class="cfnctZ"]', timeout=1100)
+                pincodeField = page.locator('input[class="cfnctZ"]').first
+                await pincodeField.click(click_count=3)
+                await pincodeField.type(str(pincode))
+            checkButton = page.locator('xpath=//span[contains(text(), "Check")]')
+            await checkButton.first.click()
             try:
-                await page.waitForXPath('//div[contains(text(), "Currently out of stock in this area.")]', timeout=2100)
+                await page.locator('xpath=//div[contains(text(), "Currently out of stock in this area.")]').wait_for(timeout=2100)
                 pincodeStock = False
             except:
                 try:
-                    await page.waitForXPath('//div[contains(text(), "Not a valid pincode")]', timeout=1100)
+                    await page.locator('xpath=//div[contains(text(), "Not a valid pincode")]').wait_for(timeout=1100)
                     pincodeStock = False
                 except:
                     try:
-                        await page.waitForXPath('//div[contains(text(), "No seller")]', timeout=1100)
+                        await page.locator('xpath=//div[contains(text(), "No seller")]').wait_for(timeout=1100)
                         pincodeStock = False
                     except:
                         pincodeStock = True
@@ -81,18 +80,18 @@ async def getProductDetails(productLink, pincode):
         webPage = webPage.replace('&amp;', '&')
 
         try:
-            productTitleSelector = await page.waitForSelector('h1', timeout=1500)
-            productName = await page.evaluate('(el)=>el.textContent', productTitleSelector)
+            await page.wait_for_selector('h1', timeout=1500)
+            productName = await page.evaluate('() => document.querySelector("h1").textContent')
         except:
             productName = webPage.split('class="B_NuCI')[1].split(
                 '</span>')[0].split('>')[1].replace('<!-- -->', '').replace('&nbsp;', '')
         try:
-            priceSelector = await page.waitForSelector('div[class="dyC4hf"]', timeout=1000)
-            prices = (await page.evaluate('(el)=>el.textContent', priceSelector)).replace(',', '')
+            await page.wait_for_selector('div[class="dyC4hf"]', timeout=1000)
+            prices = (await page.evaluate('() => document.querySelector("div[class=\\"dyC4hf\\"]").textContent')).replace(',', '')
             currentPrice = int(prices.split('₹')[1].replace(',', ''))
             try:
-                discountSelector = await page.Jx('//span[contains(text(), "% off")]')
-                discountPercentIndicator = await page.evaluate('(el)=>el.textContent', discountSelector[0])
+                discountSelector = page.locator('xpath=//span[contains(text(), "% off")]')
+                discountPercentIndicator = await discountSelector.first.text_content()
                 originalPrice = int(prices.split('₹')[2].replace(
                     ',', '').split(discountPercentIndicator)[0])
             except:
@@ -120,7 +119,7 @@ async def getProductDetails(productLink, pincode):
             discountPercent = math.floor(discount/originalPrice * 100)
             discountPercentIndicator = str(discountPercent) + '% off'
         try:
-            await page.waitForSelector('img[class="jMnjzX"]', timeout=1000)
+            await page.wait_for_selector('img[class="jMnjzX"]', timeout=1000)
             fassured = True
         except:
             fassured = False
@@ -133,8 +132,9 @@ async def getProductDetails(productLink, pincode):
         result = {'error': 'Some error occured while fetching product details'}
     finally:
         try:
-            await page.close()
+            await context.close()
             await browser.close()
+            await playwright.stop()
         except:
             None
         return result
