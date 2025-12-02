@@ -1,6 +1,9 @@
 from playwright.async_api import async_playwright
 import asyncio
 import math
+import httpx
+import re
+from urllib.parse import urlparse, parse_qs
 
 
 async def getProductDetails(productLink, pincode):
@@ -138,3 +141,122 @@ async def getProductDetails(productLink, pincode):
         except:
             None
         return result
+
+
+def extractProductId(productLink):
+    """
+    Extract product ID from Flipkart/Shopsy URL.
+    The actual product ID for the API is the 'pid' query parameter, not the 'itm...' in the path.
+    For Flipkart/Shopsy URLs: https://www.flipkart.com/.../p/itm...?pid=ACTUAL_PRODUCT_ID&...
+    """
+    try:
+        # First, try to extract 'pid' from query parameters (this is the actual product ID)
+        parsed_url = urlparse(productLink)
+        query_params = parse_qs(parsed_url.query)
+        
+        if 'pid' in query_params:
+            pid = query_params['pid'][0]
+            if pid:
+                return pid
+        
+        # Fallback: Extract from path if pid is not in query string
+        # Pattern 1: /p/itmXXXXXXXXXXXX
+        match = re.search(r'/p/(itm[a-zA-Z0-9]+)', parsed_url.path)
+        if match:
+            return match.group(1)
+        
+        # Pattern 2: itmXXXXXXXXXXXX anywhere in path
+        match = re.search(r'(itm[a-zA-Z0-9]+)', parsed_url.path)
+        if match:
+            return match.group(1)
+        
+        # Pattern 3: Check path segments
+        parts = parsed_url.path.split('/')
+        for part in parts:
+            if part.startswith('itm') and len(part) > 3:
+                return part
+        
+        return None
+    except Exception as e:
+        return None
+
+
+async def getProductDetailsFromAPI(productLink):
+    """
+    Fetch product details from Flipkart Affiliate API using product ID.
+    Returns product details from the API or None if product ID cannot be extracted or API call fails.
+    """
+    productId = extractProductId(productLink)
+    
+    if not productId:
+        return {'error': 'Could not extract product ID from URL'}
+    
+    # API credentials from Postman collection
+    affiliateId = "aneesrahm"
+    affiliateToken = "7ab4e8f576264fc58287c2f06ce06766"
+    apiUrl = f"https://affiliate-api.flipkart.net/affiliate/1.0/product.json?id={productId}"
+    
+    headers = {
+        "Fk-Affiliate-Id": affiliateId,
+        "Fk-Affiliate-Token": affiliateToken,
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+    }
+    
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(apiUrl, headers=headers)
+            
+            if response.status_code == 200:
+                apiData = response.json()
+                
+                # Parse the API response structure
+                # The API response structure may vary, so we'll extract what we can
+                result = {
+                    'source': 'Flipkart Affiliate API',
+                    'product_id': productId,
+                    'raw_response': apiData
+                }
+                
+                # Try to extract common fields from API response
+                if 'productBaseInfo' in apiData:
+                    productInfo = apiData['productBaseInfo']
+                    if 'productIdentifier' in productInfo:
+                        result['product_identifier'] = productInfo['productIdentifier']
+                    if 'title' in productInfo:
+                        result['name'] = productInfo['title']
+                    if 'productDescription' in productInfo:
+                        result['description'] = productInfo['productDescription']
+                
+                if 'productShippingInfo' in apiData:
+                    shippingInfo = apiData['productShippingInfo']
+                    if 'shippingCharges' in shippingInfo:
+                        result['shipping_charges'] = shippingInfo['shippingCharges']
+                
+                if 'productBaseInfo' in apiData and 'flipkartSpecialPrice' in apiData['productBaseInfo']:
+                    result['current_price'] = apiData['productBaseInfo']['flipkartSpecialPrice']['amount']
+                
+                if 'productBaseInfo' in apiData and 'maximumRetailPrice' in apiData['productBaseInfo']:
+                    result['original_price'] = apiData['productBaseInfo']['maximumRetailPrice']['amount']
+                
+                if 'productBaseInfo' in apiData and 'inStock' in apiData['productBaseInfo']:
+                    result['in_stock'] = apiData['productBaseInfo']['inStock']
+                
+                if 'productBaseInfo' in apiData and 'imageUrls' in apiData['productBaseInfo']:
+                    result['image_urls'] = apiData['productBaseInfo']['imageUrls']
+                
+                if 'productBaseInfo' in apiData and 'productUrl' in apiData['productBaseInfo']:
+                    result['product_url'] = apiData['productBaseInfo']['productUrl']
+                
+                return result
+            else:
+                return {
+                    'error': f'API request failed with status code {response.status_code}',
+                    'product_id': productId
+                }
+    except httpx.TimeoutException:
+        return {'error': 'API request timed out', 'product_id': productId}
+    except httpx.RequestError as e:
+        return {'error': f'API request error: {str(e)}', 'product_id': productId}
+    except Exception as e:
+        return {'error': f'Error fetching from API: {str(e)}', 'product_id': productId}

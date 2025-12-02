@@ -1,0 +1,112 @@
+{
+	"info": {
+		"_postman_id": "aed98525-7726-4d07-a1ab-97a403ddb1f2",
+		"name": "Flipkart Affiliate API Copy",
+		"description": "Collection for testing Flipkart Affiliate API endpoints used in Idzo Lite app",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "39837427",
+		"_collection_link": "https://idzo-new-apis.postman.co/workspace/IDZO-NEW-API'S-Workspace~070b1bc9-9a5b-464c-8192-727245d4db83/collection/39837427-aed98525-7726-4d07-a1ab-97a403ddb1f2?action=share&source=collection_link&creator=39837427"
+	},
+	"item": [
+		{
+			"name": "Get Product by ID",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Fk-Affiliate-Id",
+						"value": "aneesrahm",
+						"type": "text"
+					},
+					{
+						"key": "Fk-Affiliate-Token",
+						"value": "7ab4e8f576264fc58287c2f06ce06766",
+						"type": "text"
+					},
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "https://affiliate-api.flipkart.net/affiliate/1.0/product.json?id={{productId}}",
+					"protocol": "https",
+					"host": [
+						"affiliate-api",
+						"flipkart",
+						"net"
+					],
+					"path": [
+						"affiliate",
+						"1.0",
+						"product.json"
+					],
+					"query": [
+						{
+							"key": "id",
+							"value": "{{productId}}",
+							"description": "Flipkart product ID (e.g., itmXXXXXXXXXXXX)"
+						}
+					]
+				},
+				"description": "Fetches product details including stock status, price, and availability. Used by FlipkartService.checkProductStock() method."
+			},
+			"response": []
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "https://affiliate-api.flipkart.net/affiliate/1.0",
+			"type": "string"
+		},
+		{
+			"key": "affiliateId",
+			"value": "aneesrahm",
+			"type": "string"
+		},
+		{
+			"key": "affiliateToken",
+			"value": "7ab4e8f576264fc58287c2f06ce06766",
+			"type": "string"
+		},
+		{
+			"key": "productId",
+			"value": "",
+			"type": "string",
+			"description": "Example: itmXXXXXXXXXXXX - Extract from Flipkart product URL"
+		},
+		{
+			"key": "searchQuery",
+			"value": "laptop",
+			"type": "string",
+			"description": "Product search keyword"
+		}
+	]
+}
