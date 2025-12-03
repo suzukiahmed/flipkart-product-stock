@@ -181,12 +181,48 @@ def extractProductId(productLink):
         return None
 
 
+async def _expand_flipkart_url(productLink: str) -> str:
+    """
+    Expand shortened Flipkart URLs (like dl.flipkart.com, fkrt.it) to the final
+    product page URL so that we can reliably extract the product ID.
+    If expansion fails for any reason, the original URL is returned.
+    """
+    try:
+        parsed = urlparse(productLink)
+
+        # Heuristic: try to expand if it's obviously a short domain or
+        # if the URL does not yet contain enough information to get a pid.
+        is_short_domain = parsed.netloc in {
+            "dl.flipkart.com",
+            "fkrt.it",
+            "bit.ly",
+            "t.co",
+        }
+        has_pid = "pid=" in parsed.query or "/p/" in parsed.path
+
+        if not is_short_domain and has_pid:
+            # Looks like a full Flipkart URL already
+            return productLink
+
+        async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+            # Use GET instead of HEAD because some shorteners don't handle HEAD well
+            resp = await client.get(productLink)
+            return str(resp.url)
+    except Exception:
+        # On any error, just fall back to the original URL
+        return productLink
+
+
 async def getProductDetailsFromAPI(productLink):
     """
     Fetch product details from Flipkart Affiliate API using product ID.
     Returns product details from the API or None if product ID cannot be extracted or API call fails.
     """
-    productId = extractProductId(productLink)
+    # First, expand shortened URLs (dl.flipkart.com, fkrt.it, etc.)
+    expandedLink = await _expand_flipkart_url(productLink)
+
+    # Then extract product ID from the expanded URL
+    productId = extractProductId(expandedLink)
     
     if not productId:
         return {'error': 'Could not extract product ID from URL'}
